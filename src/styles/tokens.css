@@ -1,0 +1,37 @@
+:root {
+  --bg-deep: #1a130c;
+  --bg-surface: #261d12;
+  --bg-card: #3a2c1c;
+  --bg-card-hover: #4a3a28;
+  --gold: #d4a24c;
+  --gold-light: #e8c07a;
+  --wood: #5a8a3a;
+  --brick: #c44a2a;
+  --grain: #e8c468;
+  --wool: #f0e6d2;
+  --ore: #6b6b6b;
+  --ore-light: #8a8a8a;
+  --text: #f4e9d5;
+  --muted: #a89880;
+  --border: rgba(212, 162, 76, 0.2);
+  --border-hover: rgba(212, 162, 76, 0.5);
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.7);
+  --glow-gold: 0 0 16px rgba(212, 162, 76, 0.5);
+  --glow-valid: 0 0 12px rgba(90, 138, 58, 0.6);
+  --glow-invalid: 0 0 12px rgba(196, 74, 42, 0.6);
+
+  /* Resource colors */
+  --res-wood: #5a8a3a;
+  --res-brick: #c44a2a;
+  --res-grain: #e8c468;
+  --res-wool: #c8d4a4;
+  --res-ore: #8a8a9a;
+  --res-gold: #d4a24c;
+
+  /* Phase colors */
+  --phase-roll: #9b59b6;
+  --phase-action: #e67e22;
+  --phase-replenish: #27ae60;
+  --phase-exchange: #2980b9;
+}
