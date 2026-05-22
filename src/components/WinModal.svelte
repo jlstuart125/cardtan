@@ -34,7 +34,7 @@
 
     <div class="stats-grid">
       {#each [winner, winner === 'p1' ? 'p2' : 'p1'] as pid}
-        {@const p = state.players[pid]}
+        {@const p = state.players[pid as import('../lib/engine/types.js').PlayerId]}
         {@const settlements = p.principality.settlements.filter(s => s.type === 'settlement').length}
         {@const cities = p.principality.settlements.filter(s => s.type === 'city').length}
         <div class="stat-col" class:winner={pid === winner}>

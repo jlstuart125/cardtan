@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { GameState } from '../lib/engine/types.js';
+  import type { GameState, PlayerId } from '../lib/engine/types.js';
   import { dispatch } from '../lib/stores.js';
   import { canEndTurn } from '../lib/engine/rules.js';
   import { eventDescription } from '../lib/engine/dice.js';
@@ -15,18 +15,26 @@
 
   interface Props {
     state: GameState;
+    mode?: 'local' | 'online';
+    myPlayerId?: PlayerId;
   }
 
-  let { state: gs }: Props = $props();
+  let { state: gs, mode = 'local', myPlayerId = 'p1' }: Props = $props();
 
   let rollingDice = $state(false);
 
-  const activePlayer = $derived(gs.players[gs.activePlayer]);
-  const opponentId = $derived(gs.activePlayer === 'p1' ? 'p2' : 'p1');
-  const opponentPlayer = $derived(gs.players[opponentId]);
-  const canRoll = $derived(gs.phase === 'roll');
-  const canEnd = $derived(canEndTurn(gs, gs.activePlayer));
-  const showBankTrade = $derived(gs.phase === 'action');
+  // In online mode, "my" player is always visible at the bottom.
+  // In local mode, the active player is at the bottom (hot-seat).
+  const bottomPlayerId = $derived(mode === 'online' ? myPlayerId : gs.activePlayer);
+  const topPlayerId = $derived(bottomPlayerId === 'p1' ? 'p2' : 'p1');
+
+  const bottomPlayer = $derived(gs.players[bottomPlayerId]);
+  const topPlayer = $derived(gs.players[topPlayerId]);
+
+  const isMyTurn = $derived(mode === 'online' ? gs.activePlayer === myPlayerId : true);
+  const canRoll = $derived(gs.phase === 'roll' && isMyTurn);
+  const canEnd = $derived(canEndTurn(gs, gs.activePlayer) && isMyTurn);
+  const showBankTrade = $derived(gs.phase === 'action' && isMyTurn);
 
   async function rollDice() {
     if (!canRoll) return;
@@ -47,6 +55,15 @@
     replenish: 'Draw cards until your hand is full (click a draw stack).',
     exchange: 'Optionally exchange a hand card with a deck. Then end your turn.',
   };
+
+  // Turn indicator for online mode
+  const turnLabel = $derived(
+    mode === 'online'
+      ? isMyTurn
+        ? 'Your turn'
+        : `Waiting for ${gs.players[gs.activePlayer].name}...`
+      : `${gs.players[gs.activePlayer].name}'s Turn`
+  );
 </script>
 
 <div class="board parchment-bg">
@@ -56,8 +73,12 @@
     <PhaseIndicator phase={gs.phase} />
 
     <div class="center-header">
-      <span class="active-player-badge" style="color: {gs.activePlayer === 'p1' ? '#5a8a3a' : '#c44a2a'}">
-        {activePlayer.name}'s Turn
+      <span
+        class="active-player-badge"
+        class:waiting={mode === 'online' && !isMyTurn}
+        style="color: {isMyTurn ? '#5a8a3a' : '#a89880'}"
+      >
+        {turnLabel}
       </span>
       <span class="turn-num">Turn {gs.turn}</span>
     </div>
@@ -85,11 +106,24 @@
     <!-- Opponent Principality (top, always visible) -->
     <section class="opponent-section">
       <Principality
-        player={opponentPlayer}
+        player={topPlayer}
         state={gs}
         isActive={false}
         isOpponent={true}
       />
+      <!-- Show opponent's hand (card backs in online mode, already filtered) -->
+      {#if mode === 'online'}
+        <div class="opponent-hand-row">
+          <span class="opponent-hand-label">
+            {topPlayer.name}'s hand ({topPlayer.hand.length})
+          </span>
+          <div class="opponent-cards">
+            {#each topPlayer.hand as card (card.instanceId)}
+              <div class="card-back-mini"></div>
+            {/each}
+          </div>
+        </div>
+      {/if}
     </section>
 
     <!-- Center: Dice + Draw Stacks + Controls -->
@@ -102,6 +136,8 @@
             <button class="btn btn-primary roll-btn" onclick={rollDice} disabled={rollingDice}>
               {rollingDice ? 'Rolling...' : '🎲 Roll Dice'}
             </button>
+          {:else if gs.phase === 'roll' && !isMyTurn}
+            <p class="waiting-roll">Waiting for opponent to roll...</p>
           {/if}
           {#if gs.lastRoll}
             <p class="event-desc">{eventDescription(gs.lastRoll.event)}</p>
@@ -115,39 +151,41 @@
       <!-- Action controls -->
       <div class="action-controls">
         {#if showBankTrade}
-          <BankTradePanel player={activePlayer} state={gs} />
+          <BankTradePanel player={bottomPlayer} state={gs} />
         {/if}
 
-        <div class="turn-controls">
-          {#if gs.phase === 'action'}
-            <button
-              class="btn"
-              onclick={() => dispatch({ type: 'END_TURN' })}
-              disabled={!canEnd}
-              title="End your action phase and move to draw"
-            >
-              Done with Actions →
-            </button>
-          {/if}
-          {#if gs.phase === 'replenish'}
-            <button
-              class="btn"
-              onclick={() => dispatch({ type: 'END_TURN' })}
-              disabled={!canEnd}
-            >
-              Done Drawing →
-            </button>
-          {/if}
-          {#if gs.phase === 'exchange'}
-            <button
-              class="btn btn-primary"
-              onclick={endTurn}
-              disabled={!canEnd}
-            >
-              End Turn
-            </button>
-          {/if}
-        </div>
+        {#if isMyTurn}
+          <div class="turn-controls">
+            {#if gs.phase === 'action'}
+              <button
+                class="btn"
+                onclick={() => dispatch({ type: 'END_TURN' })}
+                disabled={!canEnd}
+                title="End your action phase and move to draw"
+              >
+                Done with Actions →
+              </button>
+            {/if}
+            {#if gs.phase === 'replenish'}
+              <button
+                class="btn"
+                onclick={() => dispatch({ type: 'END_TURN' })}
+                disabled={!canEnd}
+              >
+                Done Drawing →
+              </button>
+            {/if}
+            {#if gs.phase === 'exchange'}
+              <button
+                class="btn btn-primary"
+                onclick={endTurn}
+                disabled={!canEnd}
+              >
+                End Turn
+              </button>
+            {/if}
+          </div>
+        {/if}
       </div>
     </section>
 
@@ -162,22 +200,22 @@
   <section class="player-section">
     <div class="player-principality">
       <Principality
-        player={activePlayer}
+        player={bottomPlayer}
         state={gs}
-        isActive={true}
+        isActive={isMyTurn}
         isOpponent={false}
       />
     </div>
     <div class="player-hand">
-      <Hand player={activePlayer} state={gs} isActive={true} />
+      <Hand player={bottomPlayer} state={gs} isActive={isMyTurn} />
     </div>
   </section>
 
-  <!-- Overlays -->
-  {#if gs.showPassOverlay}
+  <!-- Overlays: pass overlay only in local mode -->
+  {#if gs.showPassOverlay && mode === 'local'}
     <PassOverlay
       nextPlayer={gs.activePlayer}
-      playerName={activePlayer.name}
+      playerName={gs.players[gs.activePlayer].name}
     />
   {/if}
 
@@ -279,6 +317,38 @@
     grid-column: 1 / -1;
   }
 
+  .opponent-hand-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+
+  .opponent-hand-label {
+    font-size: 11px;
+    color: #a89880;
+  }
+
+  .opponent-cards {
+    display: flex;
+    gap: 4px;
+  }
+
+  .card-back-mini {
+    width: 24px;
+    height: 36px;
+    border-radius: 3px;
+    background: repeating-linear-gradient(
+      45deg,
+      #261d12,
+      #261d12 3px,
+      #3a2c1c 3px,
+      #3a2c1c 6px
+    );
+    border: 1px solid rgba(212,162,76,0.2);
+  }
+
   .center-section {
     display: flex;
     flex-direction: column;
@@ -303,6 +373,14 @@
   .roll-btn {
     padding: 8px 16px;
     font-size: 13px;
+  }
+
+  .waiting-roll {
+    font-size: 11px;
+    color: #a89880;
+    font-style: italic;
+    margin: 0;
+    text-align: center;
   }
 
   .event-desc {

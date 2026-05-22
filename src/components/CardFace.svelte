@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { CardInstance } from '../lib/engine/types.js';
   import { getDefinition } from '../lib/engine/cards.js';
+  import { CARD_BACK_DEF_ID } from '../lib/transport/filtering.js';
   import ResourceIcon from './ResourceIcon.svelte';
 
   interface Props {
@@ -23,7 +24,8 @@
     ondragstart,
   }: Props = $props();
 
-  const def = $derived(getDefinition(card));
+  const isBack = $derived(card.definitionId === CARD_BACK_DEF_ID || faceDown);
+  const def = $derived(isBack ? null : getDefinition(card));
 
   const categoryColors: Record<string, string> = {
     building: '#5a7a9a',
@@ -46,16 +48,16 @@
   class="card-shell"
   class:selected
   class:compact
-  class:face-down={faceDown}
+  class:face-down={isBack}
   draggable={draggable ? true : undefined}
   onclick={onclick}
   ondragstart={ondragstart}
 >
-  {#if faceDown}
+  {#if isBack}
     <div class="card-back">
       <span class="back-icon">🂠</span>
     </div>
-  {:else}
+  {:else if def}
     <div class="card-top" style="background: {categoryColors[def.category]}22; border-bottom: 1px solid {categoryColors[def.category]}44;">
       <span class="card-name">{def.name}</span>
       <span class="card-cat-icon">{categoryIcons[def.category]}</span>
