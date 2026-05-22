@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
 
   interface Props {
     handle: string;
@@ -29,13 +29,13 @@
     onConnect(code);
   }
 
-  // Auto-connect if code was pre-filled from URL
-  // Capture initial value to avoid Svelte state_referenced_locally warning
-  const _initialCode = initialCode;
+  // Auto-connect if a join code arrived via URL hash
   onMount(() => {
-    if (_initialCode && _initialCode.length >= 4) {
-      setTimeout(() => connect(), 500);
-    }
+    untrack(() => {
+      if (code && code.length >= 4) {
+        setTimeout(() => connect(), 500);
+      }
+    });
   });
 </script>
 

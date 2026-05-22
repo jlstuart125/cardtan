@@ -351,7 +351,7 @@ export function reducer(state: GameState, action: GameAction): GameState {
 
     case 'ROLL_DICE': {
       if (s.phase !== 'roll') return s;
-      if (s.activePlayer !== action.type && true) { /* any player in hot-seat can roll */ }
+      // (Any player can roll in hot-seat; online mode enforces turn via P2PTransport.)
 
       const roll = rollDice();
       s.lastRoll = roll;
