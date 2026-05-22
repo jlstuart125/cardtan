@@ -1,8 +1,8 @@
 # Cardtan
 
-**Cardtan** — a 2-player digital card-and-tile resource game, MVP hot-seat edition.
+**Cardtan** — a real-time 2-player online card-and-settlement game, played in the browser over WebRTC peer-to-peer (no server required).
 
-Inspired by *Catan: The Duel / Rivals for Catan*. Two players share one screen, passing the device between turns (fog-of-war overlay hides each player's hand). Built with Svelte 5 + TypeScript + Tailwind CSS.
+Inspired by *Rivals for Catan*. Two players connect directly from their browsers — no accounts, no backend, no installation.
 
 ---
 
@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+Open [http://localhost:5173](http://localhost:5173). Click **Host Game**, share the 6-character code with a friend, and play.
 
 ---
 
@@ -30,21 +30,23 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## How to Play
+## How Online Play Works
 
-1. **Player 1 rolls** the dice. Resources are produced and an event fires.
-2. **Action phase**: Build roads/settlements/cities, bank-trade, play cards from hand.
-3. **Replenish phase**: Draw cards from the 4 draw stacks until your hand is full.
-4. **Exchange phase**: Optionally push a card to the bottom of a deck and draw a new one (blind or search).
-5. **Pass the device** to Player 2 — tap the overlay to reveal their hand.
-6. First player to **7 Victory Points** wins.
+Cardtan uses **WebRTC peer-to-peer** connections via [PeerJS](https://peerjs.com/).
 
-### Victory Points
-- Settlement: 1 VP
-- City: 2 VP
-- Trade Token (held by trade score leader): +1 VP
-- Strength Token (held by strength score leader): +1 VP
-- Certain permanent cards (Library, Wealthy Town, etc.): +1 VP each
+1. The **host** clicks "Host Game" and receives a 6-character room code.
+2. The **joiner** enters that code (or clicks an invite link).
+3. PeerJS brokers a WebRTC handshake — after that, all game traffic is **direct browser-to-browser**. No data ever touches a server.
+
+### Trust Model
+
+- The **host** runs the authoritative game engine in their browser. The host validates all actions and sends filtered state snapshots to the joiner.
+- Fog-of-war: the joiner never receives the host's hand or draw-stack card identities.
+- Because the host runs the engine locally, the host could theoretically tamper with game state. This is intentional: **Cardtan is friend-play only**, not a competitive ladder.
+
+### Local Hot-Seat Mode
+
+Click "Play locally on this device" on the start screen for the original hot-seat flow. Both players share one browser tab with a device-passing overlay.
 
 ---
 
@@ -53,87 +55,47 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 ```
 src/
   lib/
-    engine/         # Pure game logic — NO Svelte, NO DOM
-      types.ts        Game state types, card types, phase types
-      state.ts        initialState() and reducer()
-      rules.ts        Build validation, resource checks, VP scan, phase transitions
-      dice.ts         Production die + event die resolution
-      cards.ts        Card definitions (data-driven), deck generation
-    transport/      # Abstracted network layer
-      types.ts        Transport interface (subscribe/emit/getState)
-      local.ts        Hot-seat LocalTransport (current MVP)
-      socketio.ts     SocketIOTransport stub (TODO — future backend)
-    stores.ts       Svelte stores wrapping the transport
-  components/       Svelte UI components
-  styles/
-    tailwind.css    Tailwind base + custom utilities
-    tokens.css      CSS custom properties (warm earthy palette)
+    engine/       — Pure-TypeScript rules engine (framework-free)
+      types.ts    — All game types (GameState, GameAction, …)
+      state.ts    — initialState() + reducer()
+      rules.ts    — Validation helpers + VP scanner
+      cards.ts    — Card definitions + deck builder
+      dice.ts     — Dice roll logic
+    transport/
+      types.ts    — Transport interface
+      local.ts    — LocalTransport (hot-seat, in-process)
+      p2p.ts      — P2PTransport (WebRTC via PeerJS)
+      protocol.ts — Discriminated union of P2P message types
+      filtering.ts — Fog-of-war state filtering
+      rng.ts      — Deterministic RNG seeded by both peer IDs
+    handles.ts    — Random friendly handle generator
+  components/
+    Board.svelte  — Main game board (local + online modes)
+    screens/      — Start, HostWaiting, Join, Lobby, Disconnect
+    …
+  App.svelte      — Screen-level state machine
 tests/
-  engine.test.ts    Vitest unit tests (build validation, VP scan, dice, phases)
+  engine.test.ts   — 38 engine unit tests
+  protocol.test.ts — Protocol serialization + type guard tests
+  filtering.test.ts — Fog-of-war filtering tests
 ```
 
-### Key design principles
+---
 
-- **Engine is framework-free**: `src/lib/engine/` contains zero Svelte imports. It's plain TypeScript and can run in Node, a browser worker, or a server.
-- **Transport abstraction**: UI → store → transport → engine. The `Transport` interface decouples the game loop from the delivery mechanism.
-- **State is serializable**: `GameState` is a plain JSON-serializable object. Saving/loading or syncing over a network requires no transformation.
-- **Svelte 5 runes**: UI uses `$state`, `$derived`, `$effect` throughout.
+## Known Limitations
+
+- **Host runs the authoritative engine** — friend-play only, no anti-cheat. Trust your opponent.
+- **Both players must be online simultaneously** — no async / pause-and-resume.
+- **Some strict corporate or campus NATs may block WebRTC** — try a mobile hotspot if you can't connect.
+- **Host refresh loses the game** — state lives in the host's browser tab. If the host reloads, the game is gone.
 
 ---
 
-## Adding New Cards
+## Deploying Your Own Copy
 
-Cards are data-driven in `src/lib/engine/cards.ts`. To add a new card:
+1. **Fork** this repository on GitHub.
+2. In your fork's **Settings → Pages**, set Source to **GitHub Actions**.
+3. Push to `main` — the deploy workflow runs automatically.
+4. Your game is live at `https://<your-username>.github.io/cardtan/`
 
-1. Add a `CardDefinition` entry to `CARD_DEFINITIONS`:
-
-```typescript
-my_card: {
-  id: 'my_card',
-  name: 'My Card',
-  category: 'building', // building | action | hero | event
-  flavor: 'Flavor text goes here.',
-  cost: { wood: 1, ore: 1 },
-  effects: [{ type: 'gain_vp', amount: 1 }],
-  vpValue: 1,
-  playTarget: 'self',
-  oneTimeUse: false,
-},
-```
-
-2. Add it to `DECK_CONFIG[category].ids` list so it appears in decks.
-
-3. If it has a new `CardEffect` type, handle it in the `PLAY_CARD` case of `reducer()` in `state.ts`.
-
----
-
-## Roadmap
-
-- [ ] **Real backend** (Node + Express + Socket.io) — entry point is `SocketIOTransport` in `src/lib/transport/socketio.ts`
-- [ ] OAuth login / player accounts
-- [ ] Lobby system + matchmaking
-- [ ] Spectator mode
-- [ ] Leaderboards + ELO ranking
-- [ ] More card sets (expansions)
-- [ ] Animated card transitions (flip, deal, discard)
-- [ ] Sound effects + ambient audio
-- [ ] Mobile app (Capacitor wrapper)
-
-### Future backend notes
-
-The `SocketIOTransport` class in `src/lib/transport/socketio.ts` is the designated entry point for server integration. When ready:
-
-1. Install `socket.io-client`
-2. Implement the class following the TODO comments in the file
-3. In `src/lib/stores.ts`, call `setTransport(new SocketIOTransport(url, roomId, playerId))`
-4. The engine runs on the server; clients only send actions and receive state snapshots
-
----
-
-## Tech Stack
-
-- **Svelte 5** (runes API) + **Vite 8**
-- **TypeScript** (strict mode)
-- **Tailwind CSS 3** (utility classes + custom tokens)
-- **Vitest** (unit tests)
-- No 3D libraries, no heavy game-engine dependencies — vanilla web tech
+The Vite build sets `base: '/cardtan/'` when `DEPLOY_TARGET=pages` is set (done by the workflow). Local dev always uses `base: '/'`.
