@@ -28,7 +28,7 @@
 
 <div class="screen">
   <div class="hero">
-    <h1 class="title">Cardtan</h1>
+    <h1 class="title">Ca(rd)tan</h1>
     <p class="subtitle">A 2-player card-driven settlement game</p>
   </div>
 
